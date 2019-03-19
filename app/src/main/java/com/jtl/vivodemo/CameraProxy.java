@@ -424,6 +424,13 @@ public class CameraProxy {
         }
     }
 
+    /**
+     * 数据保存
+     *
+     * @param buffer     数据源
+     * @param timeStamp  时间戳
+     * @param fileSuffix 保存类型
+     */
     private void writeToFile(ByteBuffer buffer, long timeStamp, String fileSuffix) {
         FileOutputStream out = null;
         File file = new File(FileHelper.getInstance().getDataFolderPath(), timeStamp + fileSuffix);
