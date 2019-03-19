@@ -5,14 +5,12 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.ImageFormat;
-import android.graphics.Point;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
@@ -97,12 +95,6 @@ public class CameraProxy {
     public void StartPreview(){
         Message message=mCameraHandler.obtainMessage();
         message.what=CameraValue.START_PREVIEW;
-        mCameraHandler.sendMessage(message);
-    }
-
-    public void sendMessage(@CameraValue int value){
-        Message message=mCameraHandler.obtainMessage();
-        message.what=value;
         mCameraHandler.sendMessage(message);
     }
 
