@@ -7,11 +7,11 @@ package com.jtl.vivodemo;
  * 更改:
  */
 public class Constants {
-    public @interface CAMETA_TYPE{
-        String RGB_BACK="0";
-        String RGB_FRONT="1";
-        String DEPTH="2";
-        String IR="3";
+    public @interface CAMETA_TYPE {
+        String RGB_BACK = "0";
+        String RGB_FRONT = "1";
+        String DEPTH = "2";
+        String IR = "3";
     }
 
 }

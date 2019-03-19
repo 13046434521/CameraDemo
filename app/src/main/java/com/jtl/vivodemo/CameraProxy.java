@@ -68,42 +68,97 @@ public class CameraProxy {
     private CaptureRequest mPreviewRequest;
     private ProxyListener mListener;
 
-    public @interface CameraValue{
-        int OPEN_CAMERA=0;
-        int START_PREVIEW=1;
-        int CLOSE_CAMERA=2;
-    }
+    private CameraCaptureSession.CaptureCallback mCaptureCallback = new CameraCaptureSession.CaptureCallback() {
+        @Override
+        public void onCaptureStarted(@NonNull CameraCaptureSession session,
+                                     @NonNull CaptureRequest request,
+                                     long timestamp,
+                                     long frameNumber) {
+        }
+
+        @Override
+        public void onCaptureCompleted(@NonNull CameraCaptureSession session,
+                                       @NonNull CaptureRequest request,
+                                       @NonNull TotalCaptureResult result) {
+        }
+    };
 
     public boolean isOpenSuccess() {
         return openSuccess;
     }
 
-    public void OpenCamera(int width, int height){
-        Message message=mCameraHandler.obtainMessage();
-        message.what=CameraValue.OPEN_CAMERA;
-        message.arg1=width;
-        message.arg2=height;
-        mCameraHandler.sendMessage(message);
-    }
+    private CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
+        @Override
+        public void onOpened(@NonNull CameraDevice camera) {
+            mCameraOpenCloseLock.release();
+            mCameraDevice = camera;
+            startPreview();
+            KLog.e(TAG, "CameraDevice.StateCallback:onOpened");
+            openSuccess = true;
+        }
 
-    public void CloseCamera(){
-        Message message=mCameraHandler.obtainMessage();
-        message.what=CameraValue.CLOSE_CAMERA;
-        mCameraHandler.sendMessage(message);
-    }
+        @Override
+        public void onClosed(@NonNull CameraDevice camera) {
+            KLog.e(TAG, "CameraDevice.StateCallback:onClosed");
+        }
 
-    public void StartPreview(){
-        Message message=mCameraHandler.obtainMessage();
-        message.what=CameraValue.START_PREVIEW;
-        mCameraHandler.sendMessage(message);
-    }
+        @Override
+        public void onDisconnected(@NonNull CameraDevice camera) {
+            mCameraOpenCloseLock.release();
+            camera.close();
+            mCameraDevice = null;
 
-    public CameraProxy(Activity activity, ProxyListener listener,String cameraType) {
-        mCameraId=cameraType;
+            KLog.e(TAG, "CameraDevice.StateCallback:onDisconnected");
+        }
+
+        @Override
+        public void onError(@NonNull CameraDevice camera, int error) {
+            mCameraOpenCloseLock.release();
+            camera.close();
+            mCameraDevice = null;
+
+            KLog.e(TAG, "CameraDevice.StateCallback:onError:" + error);
+        }
+    };
+    /**
+     * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
+     * still image is ready to be saved
+     */
+    private ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+            KLog.e(TAG, "onImageAvailable:reader:" + reader.getImageFormat() + ":" + reader.getWidth() + ":" + reader.getHeight() + "\n" + reader.acquireNextImage().getWidth() + "---" + reader.acquireNextImage().getHeight());
+            // TODO: 2019/3/18 用于reader的保存回调
+//            mCameraHandler.post(new ImageSaver(reader.acquireLatestImage(), mFile));
+        }
+    };
+
+    public CameraProxy(Activity activity, ProxyListener listener, String cameraType) {
+        mCameraId = cameraType;
         this.mListener = listener;
         mCameraManager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         mFile = new File(activity.getExternalFilesDir(null), "pic.jpg");
         startCameraThread();
+    }
+
+    public void OpenCamera(int width, int height) {
+        Message message = mCameraHandler.obtainMessage();
+        message.what = CameraValue.OPEN_CAMERA;
+        message.arg1 = width;
+        message.arg2 = height;
+        mCameraHandler.sendMessage(message);
+    }
+
+    public void CloseCamera() {
+        Message message = mCameraHandler.obtainMessage();
+        message.what = CameraValue.CLOSE_CAMERA;
+        mCameraHandler.sendMessage(message);
+    }
+
+    public void StartPreview() {
+        Message message = mCameraHandler.obtainMessage();
+        message.what = CameraValue.START_PREVIEW;
+        mCameraHandler.sendMessage(message);
     }
 
     @RequiresPermission(Manifest.permission.CAMERA)
@@ -116,13 +171,13 @@ public class CameraProxy {
             }
             mCameraManager.openCamera(mCameraId, mStateCallback, mCameraHandler);
         } catch (InterruptedException e) {
-             KLog.e(TAG,e.toString());
+            KLog.e(TAG, e.toString());
         } catch (CameraAccessException e) {
-             KLog.e(TAG,e.toString());
+            KLog.e(TAG, e.toString());
         }
     }
 
-    private void setUpCameraOutputs(int width,int height){
+    private void setUpCameraOutputs(int width, int height) {
         try {
             for (String cameraId : mCameraManager.getCameraIdList()) {
                 KLog.e(TAG, "cameraId:" + cameraId);
@@ -142,11 +197,10 @@ public class CameraProxy {
             if (map == null) {
                 KLog.e(TAG, "map==null");
                 return;
-            }
-            else{
-                Size[] size= map.getOutputSizes(ImageFormat.JPEG);
-                for (Size size1:size){
-                    KLog.e(TAG,"Size:"+size1.toString());
+            } else {
+                Size[] size = map.getOutputSizes(ImageFormat.JPEG);
+                for (Size size1 : size) {
+                    KLog.e(TAG, "Size:" + size1.toString());
                 }
             }
 
@@ -156,7 +210,7 @@ public class CameraProxy {
 
             mImageReader = ImageReader.newInstance(width, height,
                     ImageFormat.JPEG, 2);
-            KLog.e(TAG,"mImageReader:width:"+width+"---height:"+height);
+            KLog.e(TAG, "mImageReader:width:" + width + "---height:" + height);
             mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, null);
            /* //返回屏幕从自然方向的旋转
             int displayRotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
@@ -204,49 +258,15 @@ public class CameraProxy {
 
             //check if the flash is supported
             Boolean available = cameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-            mFlashSupported= available == null ? false:available;
+            mFlashSupported = available == null ? false : available;
         } catch (CameraAccessException e) {
-             KLog.e(TAG,e.toString());
+            KLog.e(TAG, e.toString());
         }
     }
 
-    private CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
-        @Override
-        public void onOpened(@NonNull CameraDevice camera) {
-            mCameraOpenCloseLock.release();
-            mCameraDevice = camera;
-            startPreview();
-            KLog.e(TAG,"CameraDevice.StateCallback:onOpened");
-            openSuccess=true;
-        }
-
-        @Override
-        public void onClosed( @NonNull CameraDevice camera) {
-            KLog.e(TAG,"CameraDevice.StateCallback:onClosed");
-        }
-
-        @Override
-        public void onDisconnected(@NonNull CameraDevice camera) {
-            mCameraOpenCloseLock.release();
-            camera.close();
-            mCameraDevice = null;
-
-            KLog.e(TAG,"CameraDevice.StateCallback:onDisconnected");
-        }
-
-        @Override
-        public void onError(@NonNull CameraDevice camera, int error) {
-            mCameraOpenCloseLock.release();
-            camera.close();
-            mCameraDevice = null;
-
-            KLog.e(TAG,"CameraDevice.StateCallback:onError:"+error);
-        }
-    };
-
-    private void startPreview(){
+    private void startPreview() {
         try {
-            KLog.e(TAG,"startPreview");
+            KLog.e(TAG, "startPreview");
             //This is the output Surface we need to start preview
             Surface surface = mListener.getSurface();
             //We set up a CaptureRequest.Builder with the output Surface
@@ -260,51 +280,32 @@ public class CameraProxy {
                     new CameraCaptureSession.StateCallback() {
                         @Override
                         public void onConfigured(@NonNull CameraCaptureSession session) {
-                            if (null == mCameraDevice){
+                            if (null == mCameraDevice) {
                                 return;
                             }
 
-                            mCaptureSession =session;
+                            mCaptureSession = session;
                             // Auto focus should be continuous for camera preview.
                             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                                     CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
 
                             // Finally, we start displaying the camera preview.
-                            mPreviewRequest=mPreviewRequestBuilder.build();
+                            mPreviewRequest = mPreviewRequestBuilder.build();
                             try {
                                 mCaptureSession.setRepeatingRequest(mPreviewRequest,
-                                        mCaptureCallback,mCameraHandler);
+                                        mCaptureCallback, mCameraHandler);
                             } catch (CameraAccessException e) {
-                                KLog.e(TAG,e.toString());
+                                KLog.e(TAG, e.toString());
                             }
                         }
 
                         @Override
-                        public void onConfigureFailed( @NonNull CameraCaptureSession session) {
-                            KLog.e(TAG,"onConfigureFailed");
+                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                            KLog.e(TAG, "onConfigureFailed");
                         }
-                    },null);
+                    }, null);
         } catch (CameraAccessException e) {
-             KLog.e(TAG,e.toString());
-        }
-    }
-
-    private void closeCamera(){
-        try {
-            mCameraOpenCloseLock.acquire();
-            if (mCaptureSession!=null){
-                mCaptureSession.close();
-                mCaptureSession=null;
-            }
-
-            if (mCameraDevice!=null){
-                mCameraDevice.close();
-                mCameraDevice=null;
-            }
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Interrupted while trying to lock camera closing.", e);
-        }finally {
-            mCameraOpenCloseLock.release();
+            KLog.e(TAG, e.toString());
         }
     }
 
@@ -317,6 +318,25 @@ public class CameraProxy {
         mCameraHandler = new CameraHandler(mCameraThread.getLooper());
     }
 
+    private void closeCamera() {
+        try {
+            mCameraOpenCloseLock.acquire();
+            if (mCaptureSession != null) {
+                mCaptureSession.close();
+                mCaptureSession = null;
+            }
+
+            if (mCameraDevice != null) {
+                mCameraDevice.close();
+                mCameraDevice = null;
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while trying to lock camera closing.", e);
+        } finally {
+            mCameraOpenCloseLock.release();
+        }
+    }
+
     /**
      * Stops the camera thread and its{@link Handler}
      */
@@ -326,39 +346,17 @@ public class CameraProxy {
             mCameraThread.join();
             mCameraThread = null;
             mCameraHandler = null;
-            mListener=null;
+            mListener = null;
         } catch (InterruptedException e) {
-             KLog.e(TAG,e.toString());
+            KLog.e(TAG, e.toString());
         }
     }
-    
-    private CameraCaptureSession.CaptureCallback mCaptureCallback=new CameraCaptureSession.CaptureCallback() {
-        @Override
-        public void onCaptureStarted(@NonNull CameraCaptureSession session,
-                                     @NonNull CaptureRequest request,
-                                     long timestamp,
-                                     long frameNumber) {
-        }
 
-        @Override
-        public void onCaptureCompleted(@NonNull CameraCaptureSession session,
-                                       @NonNull CaptureRequest request,
-                                       @NonNull TotalCaptureResult result) {
-        }
-    };
-
-    /**
-     * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
-     * still image is ready to be saved
-     */
-    private ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
-        @Override
-        public void onImageAvailable(ImageReader reader) {
-            KLog.e(TAG,"onImageAvailable:reader:"+reader.getImageFormat()+":"+reader.getWidth()+":"+reader.getHeight()+"\n"+reader.acquireNextImage().getWidth()+"---"+reader.acquireNextImage().getHeight());
-            // TODO: 2019/3/18 用于reader的保存回调
-//            mCameraHandler.post(new ImageSaver(reader.acquireLatestImage(), mFile));
-        }
-    };
+    public @interface CameraValue {
+        int OPEN_CAMERA = 0;
+        int START_PREVIEW = 1;
+        int CLOSE_CAMERA = 2;
+    }
 
     /**
      * Compares two {@code Size}s based on their areas.
@@ -393,16 +391,16 @@ public class CameraProxy {
                 output = new FileOutputStream(mFile);
                 output.write(bytes);
             } catch (FileNotFoundException e) {
-                 KLog.e(TAG,e.toString());
+                KLog.e(TAG, e.toString());
             } catch (IOException e) {
-                 KLog.e(TAG,e.toString());
+                KLog.e(TAG, e.toString());
             } finally {
                 mImage.close();
                 if (null != output) {
                     try {
                         output.close();
                     } catch (IOException e) {
-                         KLog.e(TAG,e.toString());
+                        KLog.e(TAG, e.toString());
                     }
                 }
             }
@@ -432,9 +430,9 @@ public class CameraProxy {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            switch (msg.what){
+            switch (msg.what) {
                 case CameraValue.OPEN_CAMERA:
-                    openCamera(msg.arg1,msg.arg2);
+                    openCamera(msg.arg1, msg.arg2);
                     break;
                 case CameraValue.START_PREVIEW:
                     startPreview();

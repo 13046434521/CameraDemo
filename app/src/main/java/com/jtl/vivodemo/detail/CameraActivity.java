@@ -16,8 +16,9 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
     private CameraProxy mCameraProxy;
     private @Constants.CAMETA_TYPE
     String type;
-    private  int width =2340;
-    private  int height =1080;
+    private int width = 2340;
+    private int height = 1080;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -30,19 +31,19 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
     protected void onResume() {
         super.onResume();
 
-        KLog.e("onResume:"+"type:"+type+"width:"+width+"height:"+height);
-        mFitSurfaceView.setAspectRatio(height,width);
-        mFitSurfaceView.getHolder().setFixedSize(width,height);
+        KLog.e("onResume:" + "type:" + type + "width:" + width + "height:" + height);
+        mFitSurfaceView.setAspectRatio(height, width);
+        mFitSurfaceView.getHolder().setFixedSize(width, height);
 
-        if (mCameraProxy!=null&&mCameraProxy.isOpenSuccess()){
-            mCameraProxy.OpenCamera(width,height);
+        if (mCameraProxy != null && mCameraProxy.isOpenSuccess()) {
+            mCameraProxy.OpenCamera(width, height);
         }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (mCameraProxy!=null){
+        if (mCameraProxy != null) {
             mCameraProxy.CloseCamera();
         }
     }
@@ -53,15 +54,15 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
         mCameraProxy.stopCameraThread();
     }
 
-    private void init(){
-        type=getIntent().getStringExtra("type");
-        width=getIntent().getIntExtra("width",1920);
-        height=getIntent().getIntExtra("height",1080);
+    private void init() {
+        type = getIntent().getStringExtra("type");
+        width = getIntent().getIntExtra("width", 1920);
+        height = getIntent().getIntExtra("height", 1080);
 
-        KLog.e("init:"+"type:"+type+"width:"+width+"height:"+height);
+        KLog.e("init:" + "type:" + type + "width:" + width + "height:" + height);
 
         mFitSurfaceView = findViewById(R.id.sv_main_surface);
-        mCameraProxy = new CameraProxy(this,this,type);
+        mCameraProxy = new CameraProxy(this, this, type);
 
         mFitSurfaceView.getHolder().addCallback(this);
     }
@@ -103,8 +104,8 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        KLog.e("Surface:","width:"+width+"---height:"+height+"\nwidth"+mFitSurfaceView.getWidth()+":height"+mFitSurfaceView.getHeight());
-        mCameraProxy.OpenCamera(width,height);
+        KLog.e("Surface:", "width:" + width + "---height:" + height + "\nwidth" + mFitSurfaceView.getWidth() + ":height" + mFitSurfaceView.getHeight());
+        mCameraProxy.OpenCamera(width, height);
 
     }
 
