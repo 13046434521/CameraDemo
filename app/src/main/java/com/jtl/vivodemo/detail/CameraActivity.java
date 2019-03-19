@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.widget.TextView;
 
 import com.jtl.vivodemo.CameraProxy;
 import com.jtl.vivodemo.Constants;
@@ -13,6 +14,7 @@ import com.socks.library.KLog;
 
 public class CameraActivity extends AppCompatActivity implements SurfaceHolder.Callback, CameraProxy.ProxyListener {
     private AutoFitSurfaceView mFitSurfaceView;
+    private TextView mInfoTextView;
     private CameraProxy mCameraProxy;
     private @Constants.CAMETA_TYPE
     String type;
@@ -60,11 +62,36 @@ public class CameraActivity extends AppCompatActivity implements SurfaceHolder.C
         height = getIntent().getIntExtra("height", 1080);
 
         KLog.e("init:" + "type:" + type + "width:" + width + "height:" + height);
+        mInfoTextView = findViewById(R.id.tv_camera_info);
+        mFitSurfaceView = findViewById(R.id.sv_camera_surface);
 
-        mFitSurfaceView = findViewById(R.id.sv_main_surface);
+        mInfoTextView.setText("Type:" + getCameraType(type) + "\nInfo:" + width + "x" + height);
         mCameraProxy = new CameraProxy(this, this, type);
 
         mFitSurfaceView.getHolder().addCallback(this);
+    }
+
+    private String getCameraType(@Constants.CAMETA_TYPE String type) {
+        String cameraType;
+        switch (type) {
+            case Constants.CAMETA_TYPE.RGB_BACK:
+                cameraType = "RGB_BACK";
+                break;
+            case Constants.CAMETA_TYPE.RGB_FRONT:
+                cameraType = "RGB_FRONT";
+                break;
+            case Constants.CAMETA_TYPE.DEPTH:
+                cameraType = "DEPTH";
+                break;
+            case Constants.CAMETA_TYPE.IR:
+                cameraType = "IR";
+                break;
+            default:
+                cameraType = "未知";
+                break;
+        }
+        return cameraType;
+
     }
 
     @Override

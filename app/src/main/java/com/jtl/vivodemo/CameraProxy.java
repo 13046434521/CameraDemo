@@ -1,6 +1,7 @@
 package com.jtl.vivodemo;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
@@ -25,6 +26,7 @@ import android.support.annotation.RequiresPermission;
 import android.util.Size;
 import android.view.Surface;
 
+import com.jtl.vivodemo.helper.FileHelper;
 import com.socks.library.KLog;
 
 import java.io.File;
@@ -32,6 +34,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -127,9 +130,13 @@ public class CameraProxy {
     private ImageReader.OnImageAvailableListener mOnImageAvailableListener = new ImageReader.OnImageAvailableListener() {
         @Override
         public void onImageAvailable(ImageReader reader) {
-            KLog.e(TAG, "onImageAvailable:reader:" + reader.getImageFormat() + ":" + reader.getWidth() + ":" + reader.getHeight() + "\n" + reader.acquireNextImage().getWidth() + "---" + reader.acquireNextImage().getHeight());
+            KLog.e(TAG, "onImageAvailable:reader");
             // TODO: 2019/3/18 用于reader的保存回调
-//            mCameraHandler.post(new ImageSaver(reader.acquireLatestImage(), mFile));
+            Image image = reader.acquireNextImage();
+            KLog.e(TAG, "onImageAvailable:image:width:" + image.getWidth() + "---height:" + image.getHeight() + "---Planes:" + image.getPlanes().length);
+            ByteBuffer byteBuffer = image.getPlanes()[0].getBuffer();
+            writeToFile(byteBuffer, image.getTimestamp(), ".jpeg");
+            image.close();
         }
     };
 
@@ -138,6 +145,7 @@ public class CameraProxy {
         this.mListener = listener;
         mCameraManager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         mFile = new File(activity.getExternalFilesDir(null), "pic.jpg");
+        KLog.e("File:" + mFile.getPath());
         startCameraThread();
     }
 
@@ -270,13 +278,21 @@ public class CameraProxy {
             //This is the output Surface we need to start preview
             Surface surface = mListener.getSurface();
             //We set up a CaptureRequest.Builder with the output Surface
+            //createCaptureRequest()方法里参数templateType代表了请求类型，请求类型一共分为六种，分别为：
+            //TEMPLATE_PREVIEW：创建预览的请求
+            //TEMPLATE_STILL_CAPTURE：创建一个适合于静态图像捕获的请求，图像质量优先于帧速率。
+            //TEMPLATE_RECORD：创建视频录制的请求
+            //TEMPLATE_VIDEO_SNAPSHOT：创建视视频录制时截屏的请求
+            //TEMPLATE_ZERO_SHUTTER_LAG：创建一个适用于零快门延迟的请求。在不影响预览帧率的情况下最大化图像质量。
+            //TEMPLATE_MANUAL：创建一个基本捕获请求，这种请求中所有的自动控制都是禁用的(自动曝光，自动白平衡、自动焦点)。
             mPreviewRequestBuilder
                     = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
 
             mPreviewRequestBuilder.addTarget(surface);
+            mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
 
             //create a CameraCaptureSession for Camera preview
-            mCameraDevice.createCaptureSession(Arrays.asList(surface),
+            mCameraDevice.createCaptureSession(Arrays.asList(surface, mImageReader.getSurface()),
                     new CameraCaptureSession.StateCallback() {
                         @Override
                         public void onConfigured(@NonNull CameraCaptureSession session) {
@@ -292,6 +308,7 @@ public class CameraProxy {
                             // Finally, we start displaying the camera preview.
                             mPreviewRequest = mPreviewRequestBuilder.build();
                             try {
+                                //请求通过此捕获会话无休止地重复捕获图像。
                                 mCaptureSession.setRepeatingRequest(mPreviewRequest,
                                         mCaptureCallback, mCameraHandler);
                             } catch (CameraAccessException e) {
@@ -407,6 +424,27 @@ public class CameraProxy {
         }
     }
 
+    private void writeToFile(ByteBuffer buffer, long timeStamp, String fileSuffix) {
+        FileOutputStream out = null;
+        File file = new File(FileHelper.getInstance().getDataFolderPath(), timeStamp + fileSuffix);
+        try {
+            out = new FileOutputStream(file);
+            FileChannel writeChannel = new FileOutputStream(file, false).getChannel();
+            writeChannel.write(buffer);
+            writeChannel.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (null != out) {
+                    out.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     public interface ProxyListener {
         void onError();
 
@@ -422,11 +460,13 @@ public class CameraProxy {
 
     }
 
+
     private class CameraHandler extends Handler {
         public CameraHandler(Looper looper) {
             super(looper);
         }
 
+        @SuppressLint("MissingPermission")
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);

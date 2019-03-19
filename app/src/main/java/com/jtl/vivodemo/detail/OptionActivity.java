@@ -1,5 +1,6 @@
 package com.jtl.vivodemo.detail;
 
+import android.Manifest;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -9,8 +10,9 @@ import android.widget.RadioGroup;
 import android.widget.Toast;
 
 import com.jtl.vivodemo.Constants;
-import com.jtl.vivodemo.PermissionHelper;
 import com.jtl.vivodemo.R;
+import com.jtl.vivodemo.helper.FileHelper;
+import com.jtl.vivodemo.helper.PermissionHelper;
 
 public class OptionActivity extends AppCompatActivity implements RadioGroup.OnCheckedChangeListener, View.OnClickListener {
     private RadioGroup mSelectRGroup;
@@ -103,14 +105,16 @@ public class OptionActivity extends AppCompatActivity implements RadioGroup.OnCh
      * 预览跳转页面
      */
     private void startPreview() {
-        if (PermissionHelper.hasCameraPermission(this)) {
+        if (PermissionHelper.hasCameraPermission(this) && PermissionHelper.hasStoragePermission(this)) {
+            FileHelper.getInstance().init();
+
             Intent intent = new Intent(this, CameraActivity.class);
             intent.putExtra("width", width);
             intent.putExtra("height", height);
             intent.putExtra("type", type);
             startActivity(intent);
         } else {
-            PermissionHelper.requestCameraPermission(this);
+            PermissionHelper.requestPermission(this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 0);
         }
     }
 
